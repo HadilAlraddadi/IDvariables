@@ -1,0 +1,515 @@
+---
+title: "RTS_GAP"
+author: "Hadil"
+date: "2024-08-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(readxl)
+rt12gap <- read_excel("rt12gap.xlsx")
+View(rt12gap)
+```
+
+
+```{r}
+install.packages("optimx")
+install.packages("lme4")
+install.packages("Matrix")
+install.packages("ggplot2")
+install.packages("usethis")
+install.packages("tidyverse")
+install.packages("nlme")
+install.packages("janitor")
+install.packages("ggthemr")
+devtools::install_github('cttobin/ggthemr')
+devtools::install_github("hadley/devtools")
+install.packages("lmerTest")
+install.packages("devtools")
+install.packages("emmeans")
+install.packages("ggthemr")
+
+
+```
+
+
+```{r}
+library(Matrix)
+library(readxl)
+library(usethis)
+library(ggplot2)
+library(lme4)
+library(devtools)
+library(optimx)
+library(brms)
+library(ggeffects)
+library(dplyr)
+library(tidyverse)
+library(nlme)
+library(lmerTest)
+library(ggthemr)
+library(DT)
+library(ggdist)
+```
+
+```{r}
+hist(rt12gap$RT)
+log_rts_gap <- log(rt12gap$RT)
+hist(log_rts_gap)
+```
+
+
+
+```{r}
+rt12gap$Dominance_score <- scale(rt12gap$Dominance_score, center = TRUE, scale = TRUE)
+rt12gap$English_use <- scale(rt12gap$English_use, center = TRUE, scale = TRUE)
+rt12gap$Arabic_use <- scale(rt12gap$Arabic_use, center = TRUE, scale = TRUE)
+colnames(rt12gap)[36] <- "Domscale"
+colnames(rt12gap)[28] <- "English_use_scale"
+colnames(rt12gap)[29] <- "Arabic_use_scale"
+rt12gap$English_attidutes <- scale(rt12gap$English_attidutes, center = TRUE, scale = TRUE)
+rt12gap$Arabic_attidutes <- scale(rt12gap$Arabic_attidutes, center = TRUE, scale = TRUE)
+
+colnames(rt12gap)[32] <- "English_att_scale"
+colnames(rt12gap)[33] <- "Arabic_att_scale"
+
+rt12gap$English_global <- scale(rt12gap$English_global, center = TRUE, scale = TRUE)
+colnames(rt12gap)[34] <- "English_glob_scale"
+rt12gap$Arabic_global <- scale(rt12gap$Arabic_global, center = TRUE, scale = TRUE)
+colnames(rt12gap)[35] <- "Arabic_glob_scale"
+rt12gap$englishwork <- scale(rt12gap$englishwork, center = TRUE, scale = TRUE)
+colnames(rt12gap)[37] <- "english_workscale"
+rt12gap$aor <- scale(rt12gap$aor, center = TRUE, scale = TRUE)
+colnames(rt12gap)[5] <- "aor_scale"
+rt12gap$lor_sa <- scale(rt12gap$lor_sa, center = TRUE, scale = TRUE)
+colnames(rt12gap)[6] <- "lorsa_scale"
+rt12gap$lor_us <- scale(rt12gap$lor_us, center = TRUE, scale = TRUE)
+colnames(rt12gap)[7] <- "lorus_scale"
+rt12gap$L2onset <- scale(rt12gap$L2onset, center = TRUE, scale = TRUE)
+colnames(rt12gap)[4] <- "l2onsetscale"
+rt12gap$current_age <- scale(rt12gap$current_age, center = TRUE, scale = TRUE)
+colnames(rt12gap)[3] <- "currentage"
+rt12gap$ses <- scale(rt12gap$ses, center = TRUE, scale = TRUE)
+colnames(rt12gap)[39] <- "ses"
+rt12gap$edu <- scale(rt12gap$edu, center = TRUE, scale = TRUE)
+colnames(rt12gap)[38] <- "edu"
+
+```
+
+models with arabic global
+```{r}
+# mod0 <- glmer(as.factor(key_resp_5.CORR) ~ group + (1|group/participant) + (1|condition), family = binomial, data = GapTaskLong, control = glmerControl(check.conv.grad = .makeCC("warning", tol = 5e-2)))
+
+lbfgs_ctrl <- glmerControl()
+
+xls_nb <- rt12gap  |>
+  mutate(condition = as.factor(condition) |> relevel(ref = "CONG"),
+         correct = accuracy == 1)
+
+
+mod_0_LDTar <- glmer(accuracy ~ 1 + (1|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_1_LDTar <- glmer(accuracy ~ 1 + (1|participant) + (1|item),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_2_LDTar <- glmer(accuracy ~ Arabic_glob_scale*condition + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_3_LDTar <- glmer(accuracy ~ Arabic_glob_scale*condition + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_4_LDTar <- glmer(accuracy ~ Arabic_glob_scale*condition + (1|participant) + (1|item) + (1+condition|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_5_LDTar <- glmer(accuracy ~ Arabic_glob_scale*condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_6_LDTar <- glmer(accuracy ~ Arabic_glob_scale*condition + (1|participant) + (1|item) + + aor_scale +l2onsetscale + lorus_scale + lorsa_scale,
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+mod_7_LDTar <- glmer(accuracy ~ Arabic_glob_scale*condition + (1|participant) + (1|item) + + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_8_LDTar <- glmer(accuracy ~ Arabic_glob_scale + (1|participant) + (1|item),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_9_LDTar <- glmer(accuracy ~ Arabic_glob_scale + (1|participant) + (1|item) + (1+condition|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_10_LDTar <- glmer(accuracy ~ Arabic_glob_scale + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+print(anova(mod_0_LDTar, mod_1_LDTar, mod_2_LDTar, mod_3_LDTar,mod_4_LDTar, mod_5_LDTar, mod_6_LDTar, mod_7_LDTar, mod_8_LDTar, mod_9_LDTar, mod_10_LDTar))
+```
+```{r}
+print(summary(mod_10_LDTar))
+```
+eng
+```{r}
+# mod0 <- glmer(as.factor(key_resp_5.CORR) ~ group + (1|group/participant) + (1|condition), family = binomial, data = GapTaskLong, control = glmerControl(check.conv.grad = .makeCC("warning", tol = 5e-2)))
+
+lbfgs_ctrl <- glmerControl()
+
+xls_nb <- rt12gap  |>
+  mutate(condition = as.factor(condition) |> relevel(ref = "Congruent"),
+         correct = accuracy == 1)
+
+
+mod_0_LDTare <- glmer(accuracy ~ 1 + (1|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_1_LDTare <- glmer(accuracy ~ 1 + (1|participant) + (1|item),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_2_LDTare <- glmer(accuracy ~ English_glob_scale*condition + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_3_LDTare <- glmer(accuracy ~ English_glob_scale*condition + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_4_LDTare <- glmer(accuracy ~ English_glob_scale*condition + (1|participant) + (1|item) + (1+condition|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_5_LDTare <- glmer(accuracy ~ English_glob_scale*condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_6_LDTare <- glmer(accuracy ~ English_glob_scale*condition + (1|participant) + (1|item) + + aor_scale +l2onsetscale + lorus_scale + lorsa_scale,
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+mod_7_LDTare <- glmer(accuracy ~ English_glob_scale*condition + (1|participant) + (1|item) + + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_8_LDTare <- glmer(accuracy ~ English_glob_scale + (1|participant) + (1|item),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_9_LDTare <- glmer(accuracy ~ English_glob_scale + (1|participant) + (1|item) + (1+condition|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_10_LDTare <- glmer(accuracy ~ English_glob_scale + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+print(anova(mod_0_LDTare, mod_1_LDTare, mod_2_LDTare, mod_3_LDTare,mod_4_LDTare, mod_5_LDTare, mod_6_LDTare, mod_7_LDTare, mod_8_LDTare, mod_9_LDTare, mod_10_LDTare ))
+```
+```{r}
+print(summary(mod_8_LDTare))
+```
+
+dom
+```{r}
+
+mod_0_LDTard <- glmer(accuracy ~ 1 + (1|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_1_LDTard <- glmer(accuracy ~ 1 + (1|participant) + (1|item),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_2_LDTard <- glmer(accuracy ~ Domscale*condition + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_3_LDTard <- glmer(accuracy ~ Domscale*condition + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_4_LDTard <- glmer(accuracy ~ Domscale*condition + (1|participant) + (1|item) + (1+condition|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_5_LDTard <- glmer(accuracy ~ Domscale*condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_6_LDTard <- glmer(accuracy ~ Domscale*condition + (1|participant) + (1|item) + + aor_scale +l2onsetscale + lorus_scale + lorsa_scale,
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+mod_7_LDTard <- glmer(accuracy ~ Domscale*condition + (1|participant) + (1|item) + + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_8_LDTard <- glmer(accuracy ~ Domscale + (1|participant) + (1|item),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_9_LDTard <- glmer(accuracy ~ Domscale + (1|participant) + (1|item) + (1+condition|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_10_LDTard <- glmer(accuracy ~ Domscale + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant),
+               family = binomial(link = "logit"), 
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+
+print(anova(mod_0_LDTard, mod_1_LDTard, mod_2_LDTard, mod_3_LDTard,mod_4_LDTard, mod_5_LDTard, mod_6_LDTard, mod_7_LDTard, mod_8_LDTard, mod_9_LDTard, mod_10_LDTard ))
+```
+
+```{r}
+print(summary(mod_9_LDTard))
+```
+individual differences
+```{r}
+
+
+mod_2_LDTii <- glmer(accuracy ~currentage + condition + english_workscale + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + ses + edu +(1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_3_LDTii <- glmer(accuracy ~ currentage +condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + ses + edu +(1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_4_LDTii <- glmer(accuracy ~ currentage +condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale +ses + edu + (1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_5_LDTii <- glmer(accuracy ~ currentage +condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale +ses + edu + (1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_6_LDTii <- glmer(accuracy ~ currentage +condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale +l2onsetscale + lorus_scale +ses + edu + lorsa_scale + (1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+mod_7_LDTii <- glmer(accuracy ~ currentage +condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale +ses + edu + lorus_scale + lorsa_scale + (1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+mod_8_LDTii <- glmer(accuracy ~ currentage +condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale + lorsa_scale + ses + edu +(1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+mod_9_LDTii <- glmer(accuracy ~ currentage +condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale*condition + lorsa_scale +ses + edu + (1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+mod_10_LDTii <- glmer(accuracy ~ currentage +condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale*condition + lorsa_scale*condition + ses + edu +(1|participant) + (1|item) + (1+condition | participant),
+               family = binomial(link = "logit"),
+               data = rt12gap ,
+               control = lbfgs_ctrl)
+
+print(anova(mod_2_LDTii, mod_3_LDTii,mod_4_LDTii, mod_5_LDTii, mod_6_LDTii, mod_7_LDTii, mod_8_LDTii, mod_9_LDTii, mod_10_LDTii))
+```
+
+```{r}
+print(summary(mod_2_LDTii))
+```
+models with rt with englihs global score : 
+
+```{r}
+mod0_rt_LDTdee <- lmer(log_rts_gap ~ 1 + (1|participant), data = rt12gap )
+
+mod1_rt_LDTdee <- lmer(log_rts_gap ~ 1 + (1|participant) + (1|item), data = rt12gap )
+
+mod2_rt_LDTdee <- lmer(log_rts_gap ~ English_glob_scale*condition + (1|participant), data = rt12gap )
+
+mod3_rt_LDTdee <- lmer(log_rts_gap ~ English_glob_scale*condition + condition + length + (1|participant) + (1|item), data = rt12gap )
+
+mod4_rt_LDTdee <- lmer(log_rts_gap ~ English_glob_scale*condition + length + (1|participant) + (1|item) + (1+condition|participant), data = rt12gap )
+
+mod_5_rtcd_LDTdee <- lmer(log_rts_gap ~ English_glob_scale*condition + length + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+mod_6_rtcd_LDTdee <- lmer(log_rts_gap ~ English_glob_scale*condition + length + condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+mod7_rt_LDTdee <- lmer(log_rts_gap ~ English_glob_scale + (1|participant), data = rt12gap )
+
+mod8_rt_LDTdee <- lmer(log_rts_gap ~ English_glob_scale + (1|participant) + (1|item), data = rt12gap )
+
+mod9_rt_LDTdee <- lmer(log_rts_gap ~ English_glob_scale + (1|participant) + (1|item)  + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+
+
+
+
+
+print(anova(mod0_rt_LDTdee, mod1_rt_LDTdee, mod2_rt_LDTdee, mod3_rt_LDTdee, mod4_rt_LDTdee, mod_5_rtcd_LDTdee, mod_6_rtcd_LDTdee, mod7_rt_LDTdee, mod8_rt_LDTdee, mod9_rt_LDTdee ))
+```
+
+```{r}
+summary(mod4_rt_LDTdee)
+```
+
+models with rt with arabic global score : 
+
+```{r}
+mod0_rt_LDTdeea <- lmer(log_rts_gap ~ 1 + (1|participant), data = rt12gap )
+
+mod1_rt_LDTdeea <- lmer(log_rts_gap ~ 1 + (1|participant) + (1|item), data = rt12gap )
+
+mod2_rt_LDTdeea <- lmer(log_rts_gap ~ Arabic_glob_scale*condition + (1|participant), data = rt12gap )
+
+mod3_rt_LDTdeea <- lmer(log_rts_gap ~ Arabic_glob_scale*condition + condition + length + (1|participant) + (1|item), data = rt12gap )
+
+mod4_rt_LDTdeea <- lmer(log_rts_gap ~ Arabic_glob_scale*condition + length + (1|participant) + (1|item) + (1+condition|participant), data = rt12gap )
+
+mod_5_rtcd_LDTdeea <- lmer(log_rts_gap ~ Arabic_glob_scale*condition + length + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+mod_6_rtcd_LDTdeea <- lmer(log_rts_gap ~ Arabic_glob_scale*condition + length + condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+mod7_rt_LDTdeea <- lmer(log_rts_gap ~ Arabic_glob_scale + (1|participant), data = rt12gap )
+
+mod8_rt_LDTdeea <- lmer(log_rts_gap ~ Arabic_glob_scale + (1|participant) + (1|item), data = rt12gap )
+
+mod9_rt_LDTdeea <- lmer(log_rts_gap ~ Arabic_glob_scale + (1|participant) + (1|item)  + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+
+
+
+
+
+print(anova(mod0_rt_LDTdeea, mod1_rt_LDTdeea, mod2_rt_LDTdeea, mod3_rt_LDTdeea, mod4_rt_LDTdeea, mod_5_rtcd_LDTdeea, mod_6_rtcd_LDTdeea, mod7_rt_LDTdeea, mod8_rt_LDTdeea, mod9_rt_LDTdeea ))
+```
+
+```{r}
+summary(mod4_rt_LDTdeea)
+```
+
+models with rt with dom score : 
+
+```{r}
+mod0_rt_LDTded <- lmer(log_rts_gap ~ 1 + (1|participant), data = rt12gap )
+
+mod1_rt_LDTded <- lmer(log_rts_gap ~ 1 + (1|participant) + (1|item), data = rt12gap )
+
+mod2_rt_LDTded <- lmer(log_rts_gap ~ Domscale*condition + (1|participant), data = rt12gap )
+
+mod3_rt_LDTded <- lmer(log_rts_gap ~ Domscale*condition + condition + length + (1|participant) + (1|item), data = rt12gap )
+
+mod4_rt_LDTded <- lmer(log_rts_gap ~ Domscale*condition + length + (1|participant) + (1|item) + (1+condition|participant), data = rt12gap )
+
+mod_5_rtcd_LDTded <- lmer(log_rts_gap ~ Domscale*condition + length + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+mod_6_rtcd_LDTded <- lmer(log_rts_gap ~ Domscale*condition + length + condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+mod7_rt_LDTded <- lmer(log_rts_gap ~ Domscale + (1|participant), data = rt12gap )
+
+mod8_rt_LDTded <- lmer(log_rts_gap ~ Domscale + (1|participant) + (1|item), data = rt12gap )
+
+mod9_rt_LDTded <- lmer(log_rts_gap ~ Domscale + (1|participant) + (1|item)  + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+
+
+
+
+
+print(anova(mod0_rt_LDTded, mod1_rt_LDTded, mod2_rt_LDTded, mod3_rt_LDTded, mod4_rt_LDTded, mod_5_rtcd_LDTded, mod_6_rtcd_LDTded, mod7_rt_LDTded, mod8_rt_LDTded, mod9_rt_LDTded ))
+```
+
+```{r}
+summary(mod4_rt_LDTded)
+```
+
+```{r}
+
+mod7_rt_LD <- lmer(log_rts_gap ~ Domscale + (1|participant), data = rt12gap )
+
+mod8_rt_LD <- lmer(log_rts_gap ~ Domscale + (1|participant) + (1|item), data = rt12gap )
+
+mod9_rt_LD<- lmer(log_rts_gap ~ Domscale + (1|participant) + (1|item)  + (1+condition|participant) + (1+item|participant), data = rt12gap )
+
+
+
+
+
+
+print(anova(mod7_rt_LD, mod8_rt_LD, mod9_rt_LD))
+```
+
+```{r}
+summary(mod9_rt_LD)
+```
+models with individual scales
+```{r}
+
+mod_2_iglobalrti <- lmer(log_rts_gap ~ currentage +length + condition + english_workscale + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + ses + edu + (1|participant) + (1|item) + (1+condition | participant), data = rt12gap)
+
+
+mod_3_iglobalrti <- lmer(log_rts_gap ~ currentage +length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale +  ses + edu + (1|participant) + (1|item) + (1+condition | participant), data = rt12gap)
+
+mod_4_iglobalrti <- lmer(log_rts_gap ~ currentage +length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + ses + edu + (1|participant) + (1|item) + (1+condition | participant), data = rt12gap)
+
+
+mod_5_iglobalrti <- lmer(log_rts_gap ~ currentage +length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale + aor_scale +l2onsetscale + lorus_scale +ses + edu + lorsa_scale +  (1|participant) + (1|item) + (1+condition | participant), data = rt12gap)
+
+mod_6_iglobalrti <- lmer(log_rts_gap ~currentage + length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale +l2onsetscale + ses + edu +lorus_scale + lorsa_scale +  (1|participant) + (1|item) + (1+condition | participant), data = rt12gap)
+
+
+mod_7_iglobalrti <- lmer(log_rts_gap ~currentage + length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale + lorsa_scale +ses + edu +  (1|participant) + (1|item)+ (1+condition | participant), data = rt12gap)
+
+mod_8_iglobalrti <- lmer(log_rts_gap ~ currentage +length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale*condition + lorsa_scale + ses + edu + (1|participant) + (1|item)+ (1+condition | participant), data = rt12gap)
+
+mod_9_iglobalrti <- lmer(log_rts_gap ~ currentage +length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale*condition + lorsa_scale*condition + ses + edu + (1|participant) + (1|item)+ (1+condition | participant), data = rt12gap)
+
+
+print(anova( mod_2_iglobalrti, mod_3_iglobalrti, mod_4_iglobalrti, mod_5_iglobalrti, mod_6_iglobalrti, mod_7_iglobalrti, mod_8_iglobalrti, mod_9_iglobalrti ))
+
+```
+
+
+```{r}
+summary(mod_2_iglobalrti)
+```

@@ -1,0 +1,1017 @@
+---
+title: "frontierlongrmd"
+author: "Hadil"
+date: "2023-10-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+# Define the col_types vector for 40 columns
+col_types <- c("text",    # First column: text
+               "text",    # Second column: text
+               rep("numeric", 12),  # Columns 3 to 14: numeric
+               "text",    # Fifteenth column: text
+               "numeric", # Sixteenth column: numeric
+               "text",    # Seventeenth column: text
+               rep("numeric", 27))  # Columns 18 to 44: numeric
+
+# Read the Excel file with the specified column types
+frontiers_long <- read_excel("~/Desktop/frontierslong/frontiers_long.xlsm", 
+                             col_types = col_types, 
+                             na = "Not Applicable")
+
+# View the data
+View(frontiers_long)
+```
+
+
+
+```{r}
+str(frontiers_long)
+unique(frontiers_long$aor)
+frontiers_long$aor <- as.numeric(frontiers_long$aor)
+```
+
+
+```{r}
+group_RT1long <- frontiers_long %>% filter(group == "RT1")
+group_RT2long <- frontiers_long %>% filter(group == "RT2")
+group_AHSlong <- frontiers_long %>% filter(group == "AHS")
+
+```
+
+```{r}
+install.packages("optimx")
+install.packages("lme4")
+install.packages("Matrix")
+install.packages("ggplot2")
+install.packages("usethis")
+install.packages("tidyverse")
+install.packages("nlme")
+install.packages("janitor")
+install.packages("ggthemr")
+devtools::install_github('cttobin/ggthemr')
+devtools::install_github("hadley/devtools")
+install.packages("lmerTest")
+install.packages("devtools")
+install.packages("emmeans")
+install.packages("ggthemr")
+
+
+```
+
+
+```{r}
+library(Matrix)
+library(readxl)
+library(usethis)
+library(ggplot2)
+library(lme4)
+library(devtools)
+library(optimx)
+library(brms)
+library(ggeffects)
+library(dplyr)
+library(tidyverse)
+library(nlme)
+library(lmerTest)
+library(ggthemr)
+library(DT)
+library(ggdist)
+```
+
+```{r}
+frontiers_long %>%
+  group_by(group) %>%
+  group_by(condition, group) %>%
+  summarise(across(
+    where(is.numeric),
+    list(mean = ~mean(.x, na.rm = TRUE),
+         count = ~sum(!is.na(.x)),
+         sd = ~sd(.x, na.rm = TRUE),
+         range = ~diff(range(.x, na.rm = TRUE)),
+         min = ~min(.x, na.rm = TRUE),     # Add minimum calculation
+         max = ~max(.x, na.rm = TRUE)      # Add maximum calculation
+    ))) 
+```
+```{r}
+library(dplyr)
+
+frontiers_long %>%
+  group_by(group, condition) %>%
+  summarise(
+    accuracy = mean(accuracy, na.rm = TRUE),
+    count = sum(!is.na(accuracy))
+  )
+```
+```{r}
+library(dplyr)
+
+frontiers_long %>%
+  group_by(group) %>%
+  summarise(
+    accuracy_total = mean(accuracy, na.rm = TRUE),
+    total_count = sum(!is.na(accuracy))
+  )
+```
+```{r}
+library(dplyr)
+
+frontiers_long %>%
+  group_by(condition, group) %>%
+  summarise(
+    accuracy_total = mean(accuracy, na.rm = TRUE),
+    total_count = sum(!is.na(accuracy))
+  )
+```
+```{r}
+library(dplyr)
+
+frontiers_long %>%
+  group_by(group, condition) %>%
+  summarise(
+    total_accuracy = sum(accuracy) / n()
+  )
+```
+```{r}
+library(dplyr)
+
+frontiers_long %>%
+  group_by(group, condition) %>%
+  summarise(
+    total_correct = sum(accuracy),
+    total_incorrect = sum(23 - accuracy),
+    total_attempts = n() * 23,  # Multiply by 23 to get the total possible attempts
+    total_accuracy = total_correct / total_attempts
+  )
+```
+
+
+```{r}
+frontiers_long %>%
+  group_by(group) %>%
+  summarise(across(
+    where(is.numeric),
+    list(mean = ~mean(.x, na.rm = TRUE),
+         count = ~sum(!is.na(.x)),
+         sd = ~sd(.x, na.rm = TRUE),     # Add standard deviation calculation
+         range = ~diff(range(.x, na.rm = TRUE)),   # Add range calculation
+         min = ~min(.x, na.rm = TRUE),     # Add minimum calculation
+         max = ~max(.x, na.rm = TRUE))     # Add maximum calculation
+  ))
+```
+```{r}
+frontiers_long %>%
+  group_by(condition, group) %>%
+  summarise(across(
+    where(is.numeric),
+    list(mean = ~mean(.x, na.rm = TRUE),
+         count = ~sum(!is.na(.x)),
+         sd = ~sd(.x, na.rm = TRUE),
+         range = ~diff(range(.x, na.rm = TRUE)),
+         min = ~min(.x, na.rm = TRUE),
+         max = ~max(.x, na.rm = TRUE))
+  ))
+```
+```{r}
+frontiers_long %>%
+  group_by(condition, group) %>%
+  summarise(
+    mean_rt = mean(rt, na.rm = TRUE),
+    correct_count = sum(correct, na.rm = TRUE)
+  )
+```
+
+```{r}
+hist(frontiers_long$ldtacc_incong)
+```
+
+
+```{r}
+hist(frontiers_long$rt)
+log_rt_ldtfrontiers <- log(frontiers_long$rt)
+hist(log_rt_ldtfrontiers)
+```
+# RT per condition
+
+```{r}
+frontiers_long |>
+  ggplot(aes(x = group, y = log_rt_ldtfrontiers, fill = condition)) +
+  geom_boxplot()
+```
+
+```{r}
+frontiers_long|>
+  mutate(accuracy = as.numeric(as.character(accuracy))) %>%
+  ggplot(aes(x = condition, y = accuracy, fill = group)) +
+  geom_boxplot()
+```
+Scaling variables:
+
+```{r}
+frontiers_long$Dominance_score <- scale(frontiers_long$Dominance_score, center = TRUE, scale = TRUE)
+frontiers_long$English_use <- scale(frontiers_long$English_use, center = TRUE, scale = TRUE)
+frontiers_long$Arabic_use <- scale(frontiers_long$Arabic_use, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[30] <- "Domscale"
+colnames(frontiers_long)[22] <- "English_use_scale"
+colnames(frontiers_long)[23] <- "Arabic_use_scale"
+frontiers_long$English_attidutes <- scale(frontiers_long$English_attidutes, center = TRUE, scale = TRUE)
+frontiers_long$Arabic_attidutes <- scale(frontiers_long$Arabic_attidutes, center = TRUE, scale = TRUE)
+
+colnames(frontiers_long)[26] <- "English_att_scale"
+colnames(frontiers_long)[27] <- "Arabic_att_scale"
+
+frontiers_long$English_global <- scale(frontiers_long$English_global, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[28] <- "English_glob_scale"
+frontiers_long$Arabic_global <- scale(frontiers_long$Arabic_global, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[29] <- "Arabic_glob_scale"
+frontiers_long$englishwork <- scale(frontiers_long$englishwork, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[40] <- "english_workscale"
+frontiers_long$aor <- scale(frontiers_long$aor, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[4] <- "aor_scale"
+frontiers_long$lor_sa <- scale(frontiers_long$lor_sa, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[5] <- "lorsa_scale"
+frontiers_long$lor_us <- scale(frontiers_long$lor_us, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[6] <- "lorus_scale"
+frontiers_long$L2onset <- scale(frontiers_long$L2onset, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[39] <- "l2onsetscale"
+frontiers_long$Current_age <- scale(frontiers_long$Current_age, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[3] <- "currentage"
+frontiers_long$ses <- scale(frontiers_long$ses, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[42] <- "ses"
+frontiers_long$edu <- scale(frontiers_long$edu, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[41] <- "edu"
+frontiers_long$EnglishVoc <- scale(frontiers_long$EnglishVoc, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[43] <- "EnglishVocs"
+frontiers_long$ArabicVoc <- scale(frontiers_long$ArabicVoc, center = TRUE, scale = TRUE)
+colnames(frontiers_long)[44] <- "ArabicVocs"
+
+
+```
+
+
+```{r}
+frontiers_long %>%
+group_by(group) %>%
+  summarise(across(where(is.numeric),
+    list(mean = ~ mean(.x, na.rm = TRUE), count = ~ sum(!is.na(.x)))))
+```
+
+```{r}
+library(dplyr)
+
+sum_table_acc <- frontiers_long %>%
+  mutate(accuracy = as.numeric(as.character(accuracy))) %>%
+  group_by(group) %>%
+  summarise(
+    Total = mean(accuracy)
+  ) %>%
+  ungroup()
+
+print(sum_table_acc)
+```
+
+# Correct answers per group & condition
+
+```{r}
+library(data.table)
+freqs <- frontiers_long |>
+  group_by(group, condition) |>
+  summarize(total_correct = sum(accuracy),
+            fract_correct = total_correct / n()) |>
+  arrange(condition, group)
+
+freqs |> data.table()
+
+
+```
+
+
+```{r}
+settingAGQ=0
+```
+
+```{r}
+remove.packages("Matrix")
+install.packages("Matrix", dependencies=TRUE)
+```
+
+```{r}
+# mod0 <- glmer(as.factor(key_resp_5.CORR) ~ group + (1|group/participant) + (1|condition), family = binomial, data = GapTaskLong, control = glmerControl(check.conv.grad = .makeCC("warning", tol = 5e-2)))
+
+lbfgs_ctrl <- glmerControl() 
+
+
+xls_nb <- frontiers_long |>
+  mutate(condition = as.factor(condition) |> relevel(ref = "Congruent"),
+         group = as.factor(group) |> relevel(ref = "AHS"),
+         correct = accuracy == 1)
+
+mod_0_LDT <- glmer(accuracy ~ 1 + (1|participant),
+               family = binomial(link = "logit"), 
+               data = frontiers_long,
+               control = lbfgs_ctrl)
+
+mod_1_LDT <- glmer(accuracy ~ 1 + (1|participant) + (1|item),
+               family = binomial(link = "logit"), 
+               data = frontiers_long,
+               control = lbfgs_ctrl)
+
+mod_2_LDT <- glmer(accuracy ~ group + (1|participant),
+               family = binomial(link = "logit"),
+               data = frontiers_long,
+               control = lbfgs_ctrl)
+
+mod_3_LDT <- glmer(accuracy ~ group + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long,
+               control = lbfgs_ctrl)
+
+mod_4_LDT <- glmer(accuracy ~ group * condition + (1|participant) + (1|item),
+               family = binomial(link = "logit"), 
+               data = frontiers_long,
+               nAGQ=settingAGQ,control = lbfgs_ctrl)
+
+
+print(anova(mod_0_LDT, mod_1_LDT, mod_2_LDT, mod_3_LDT,mod_4_LDT ))
+```
+
+```{r}
+print(summary(mod_4_LDT))
+```
+
+
+models with individual differences
+```{r}
+
+```
+
+```{r}
+
+
+mod_2_LDTii <- glmer(accuracy ~  condition + english_workscale + English_use_scale + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +lorus_scale + lorsa_scale +l2onsetscale + ses + edu + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+               control = glmerControl(optimizer = "bobyqa")
+)
+
+
+mod_3_LDTii <- glmer(accuracy ~ condition + english_workscale + English_use_scale + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale+ ses + edu +lorus_scale + lorsa_scale +EnglishVocs + ArabicVocs + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+             control = glmerControl(optimizer = "bobyqa")
+)
+
+
+mod_4_LDTii <- glmer(accuracy ~  condition + english_workscale + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale+ ses + edu +lorus_scale + lorsa_scale +EnglishVocs + ArabicVocs +l2onsetscale  + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+               
+control = glmerControl(optimizer = "bobyqa")
+)
+
+mod_5_LDTii <- glmer(accuracy ~ condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale+ ses + edu +lorus_scale + lorsa_scale +EnglishVocs + ArabicVocs + aor_scale +l2onsetscale +  (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+               control = glmerControl(optimizer = "bobyqa")
+)
+
+
+mod_6_LDTii <- glmer(accuracy ~  condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale + English_att_scale+ ses + edu+ lorus_scale + lorsa_scale +EnglishVocs + ArabicVocs  + aor_scale +l2onsetscale +  (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+ control = glmerControl(optimizer = "bobyqa")
+)
+
+
+mod_7_LDTii <- glmer(accuracy ~  condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale +EnglishVocs + ArabicVocs  +ses + edu +  (1|participant) + (1|item) ,
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+  control = glmerControl(optimizer = "bobyqa")
+)
+
+mod_8_LDTii <- glmer(accuracy ~ condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale +l2onsetscale + lorus_scale + lorsa_scale +EnglishVocs + ArabicVocs +ses + edu +  (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+        
+             control = glmerControl(optimizer = "bobyqa")
+)
+
+mod_9_LDTii <- glmer(accuracy ~ condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale+ ses + edu+ lorus_scale + lorsa_scale +EnglishVocs + ArabicVocs  +l2onsetscale +  (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+               
+control = glmerControl(optimizer = "bobyqa")
+)
+
+
+mod_10_LDTii <- glmer(accuracy ~ condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition+ lorus_scale + lorsa_scale +EnglishVocs + ArabicVocs +ses + edu  + (1|participant) + (1|item),
+               family = binomial(link = "logit"),
+               data = frontiers_long ,
+        control = glmerControl(optimizer = "bobyqa")
+)
+
+
+print(anova(mod_2_LDTii, mod_3_LDTii,mod_4_LDTii, mod_5_LDTii, mod_6_LDTii, mod_7_LDTii, mod_8_LDTii, mod_9_LDTii, mod_10_LDTii ))
+```
+
+```{r}
+print(summary(mod_2_LDTii))
+```
+```{r}
+# Assuming you have a binomial logistic regression model
+library(lme4)
+library(MuMIn)
+
+mod_glmerajt <-glmer(accuracy ~  condition + english_workscale + English_use_scale + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +lorus_scale + lorsa_scale +l2onsetscale + ses + edu + (1|participant) + (1|item),
+                   family = binomial(link = "logit"),
+                   data = frontiers_long)
+# Compute R² values
+r2_glmerajt <- r.squaredGLMM(mod_glmerajt)
+
+# Display marginal and conditional R²
+print(r2_glmerajt)
+```
+```
+
+```{r}
+cor.test(frontiers_long$lorsa_scale, frontiers_long$lorus_scale, method = "spearman")
+```
+
+
+```{r}
+# Install and load the car package
+install.packages("car")
+library(car)
+
+# Calculate VIFs
+vif(mod_2_LDTii)
+```
+
+
+
+```{r}
+model_params_LDT <- broom.mixed::tidy(mod_4_LDT)
+
+model_params_LDT|>
+  filter(!str_detect(term, "sd")) |>
+  ggplot(aes(x = term, y = estimate)) +
+  # geom_hline(yintercept = 1, linetype = "dotted", color = "black") +
+  geom_errorbar(aes(ymin = estimate - std.error, ymax = estimate + std.error), width = 0.1, color = "black") +
+  geom_point(aes(color = term), size = 3) +
+  theme(legend.position = "bottom") +
+  labs(y = "Logit", x = "Group")
+```
+# Here I attempt to perform post-hoc by using emmeans for mod_3 (accuracy)
+
+```{r}
+library(emmeans)
+emmeans(mod_4_LDT, list(pairwise ~ group), adjust = "tukey")
+```
+
+
+```{r}
+mod0_rt_LDT <- lmer(log_rt_ldtfrontiers ~ 1 + (1|participant), data = frontiers_long)
+
+mod1_rt_LDT <- lmer(log_rt_ldtfrontiers ~ 1 + (1|participant) + (1|item), data = frontiers_long)
+
+mod2_rt_LDT <- lmer(log_rt_ldtfrontiers ~ group + (1|participant), data = frontiers_long)
+
+mod3_rt_LDT <- lmer(log_rt_ldtfrontiers ~ group + (1|participant) + (1|item), data = frontiers_long)
+
+mod4_rt_LDT <- lmer(log_rt_ldtfrontiers ~ group + length + (1|participant) + (1|item), data = frontiers_long)
+
+mod_5_rtcd_LDT <- lmer(log_rt_ldtfrontiers ~ length + group * condition + (1|participant) + (1|item), data = frontiers_long)
+
+mod_6_rtcd_LDT <- lmer(log_rt_ldtfrontiers ~ length + group * condition + (1|participant) + (1|item) + (1+condition|participant), data = frontiers_long)
+
+mod_7_rtcd_LDT <- lmer(log_rt_ldtfrontiers ~ length + group * condition + group*English_use + group*Arabic_use + (1|participant) + (1|item) + (1+condition|participant), data = frontiers_long)
+
+
+
+print(anova(mod0_rt_LDT, mod1_rt_LDT, mod2_rt_LDT, mod3_rt_LDT, mod4_rt_LDT, mod_5_rtcd_LDT, mod_6_rtcd_LDT ))
+```
+
+```{r}
+summary(mod_5_rtcd_LDT)
+```
+
+```{r}
+library(emmeans)
+emmeans(mod_5_rtcd_LDT, list(pairwise ~ group), adjust = "tukey")
+```
+
+
+
+
+```{r}
+group_RT1long <- frontiers_long %>% filter(group == "RT1")
+group_RT2long <- frontiers_long %>% filter(group == "RT2")
+group_AHSlong <- frontiers_long %>% filter(group == "AHS")
+
+```
+
+```{r}
+install.packages("viridis")
+library(viridis)
+```
+
+```{r}
+# Assuming you have a variable called color_variable in your data frame
+scatterplotAHSlong <- ggplot(frontiers_long, aes(x = rt_mean_total, y = English_global, color = English_global)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "maroon") +
+  scale_color_viridis() +  # Using the viridis color palette
+  labs(
+    x = "AJT-  Mean RT",
+    y = "English global score",
+    title = "Scatterplot"
+  ) 
+
+print(scatterplotAHSlong)
+```
+```{r}
+# Assuming you have a variable called color_variable in your data frame
+scatterplotAHSlong <- ggplot(group_AHSlong, aes(x = ldtrt_incong, y = English_global, color = English_use)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "maroon") +
+  scale_color_viridis() +  # Using the viridis color palette
+  labs(
+    x = "AJT - RT INCONGRUENT TRIALS",
+    y = "English_total",
+    title = "Scatterplot for AHS"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.title = element_text(face = "bold")  # Making axis labels bold
+  )
+
+print(scatterplotAHSlong)
+```
+
+
+
+##INCONGRUENT LDT ACCURACY with all BLP variables for RT1
+```{r}
+cor.test(group_RT1long$English_global, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$English_use, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$English_attidutes, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$Arabic_global, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$Arabic_use, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$Arabic_attidutes, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$Dominance_score, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$aor, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$L2onset, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$lor_sa, group_RT1long$ldtacc_incong, method = "spearman")
+cor.test(group_RT1long$lor_us, group_RT1long$ldtacc_incong, method = "spearman")
+
+
+
+```
+##INCONGRUENT LDT ACCURACY with all BLP variables for RT2
+```{r}
+cor.test(group_RT2long$English_global, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$English_use, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$English_attidutes, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_global, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_use, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_attidutes, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$Dominance_score, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$aor, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$L2onset, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$lor_sa, group_RT2long$ldtacc_incong, method = "spearman")
+cor.test(group_RT2long$lor_us, group_RT2long$ldtacc_incong, method = "spearman")
+
+
+
+```
+##INCONGRUENT LDT ACCURACY with all BLP variables for AHS
+```{r}
+cor.test(group_AHSlong$English_global, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$English_use, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$English_attidutes, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$Arabic_global, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$Arabic_use, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$Arabic_attidutes, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$Dominance_score, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$aor, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$L2onset, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$lor_sa, group_AHSlong$ldtacc_incong, method = "spearman")
+cor.test(group_AHSlong$lor_us, group_AHSlong$ldtacc_incong, method = "spearman")
+
+
+
+```
+
+```{r}
+cor.test(group_AHSlong$English_global, group_AHSlong$accuracy_total, method= "pearson")
+cor.test(group_RT1long$English_global, group_RT1long$accuracy_total, method= "pearson")
+cor.test(group_RT2long$English_global, group_RT2long$accuracy_total, method= "pearson")
+
+#the age of return among returnees
+cor.test(group_RT1long$ldtacc_cong, group_RT1long$accuracy_total, method= "spearman")
+cor.test(group_RT2long$aor, group_RT2long$accuracy_total, method= "pearson")
+
+#English use
+cor.test(group_RT1long$ldtacc_incong, group_RT1long$English_global, method= "pearson")
+cor.test(group_RT2long$ldtacc_incong, group_RT2long$English_global, method= "pearson")
+cor.test(group_AHSlong$ldtacc_incong, group_AHSlong$English_global, method= "pearson")
+cor.test(group_RT1long$rt_mean_total, group_RT1long$Arabic_global, method= "pearson")
+cor.test(group_RT2long$rt_mean_total, group_RT2long$Arabic_global, method= "pearson")
+  cor.test(group_AHSlong$rt_mean_total, group_AHSlong$Arabic_use, method= "pearson")
+
+# conditions
+cor.test(group_RT1long$English_use, group_RT1long$accuracy, method= "pearson")
+
+cor.test(group_RT2long$English_global, group_RT2long$accuracy_total, method= "pearson")
+
+unique(group_RT1long$aor)
+
+```
+## Attitudes with LDT ACCURACY AND RT
+
+```{r}
+cor.test(group_RT2long$English_attidutes, group_RT2long$ldtacc_incong, method= "pearson")
+cor.test(group_RT1long$English_attidutes, group_RT1long$ldtacc_incong, method= "pearson")
+cor.test(group_AHSlong$English_attidutes, group_AHSlong$ldtacc_incong, method= "pearson")
+```
+
+
+
+```{r}
+frontiers_long <- frontiers_long %>%
+  mutate(incong = case_when(condition == "Congruent" ~ -1L, # baseline
+                          condition == "Incongruent" ~  1L, # target
+                          TRUE      ~ 0L), # anything else
+          unacw = case_when(condition == "Congruent" ~ -1L, # baseline
+                          condition == "UnaccWithArEq" ~  1L, # target
+                          TRUE      ~ 0L), # anything else
+          unacwt = case_when(condition == "Congruent" ~ -1L, # baseline
+                          condition == "UnaccWithoutArEq" ~  1L, # target
+                          TRUE      ~ 0L))
+
+```
+
+CONGRUENT ACCURACY WTH BLP AHS
+```{r}
+cor.test(group_AHSlong$English_global, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$English_use, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$English_attidutes, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$Arabic_global, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$Arabic_use, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$Arabic_attidutes, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$Dominance_score, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$aor, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$L2onset, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$lor_sa, group_AHSlong$ldtacc_cong, method = "spearman")
+cor.test(group_AHSlong$lor_us, group_AHSlong$ldtacc_cong, method = "spearman")
+
+
+
+```
+
+CONGRUENT ACCURACY WTH BLP RT1
+```{r}
+cor.test(group_RT1long$English_global, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$English_use, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$English_attidutes, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$Arabic_global, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$Arabic_use, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$Arabic_attidutes, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$Dominance_score, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$aor, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$L2onset, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$lor_sa, group_RT1long$ldtacc_cong, method = "spearman")
+cor.test(group_RT1long$lor_us, group_RT1long$ldtacc_cong, method = "spearman")
+
+
+
+```
+
+CONGRUENT ACCURACY WTH BLP RT2
+```{r}
+cor.test(group_RT2long$English_global, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$English_use, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$English_attidutes, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$Arabic_global, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$Arabic_use, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$Arabic_attidutes, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$Dominance_score, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$aor, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$L2onset, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$lor_sa, group_RT2long$ldtacc_cong, method = "spearman")
+cor.test(group_RT2long$lor_us, group_RT2long$ldtacc_cong, method = "spearman")
+
+
+
+```
+
+
+RT INCONGRUENT RT2
+
+```{r}
+cor.test(group_RT2long$English_global, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$English_use, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$English_attidutes, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_global, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_use, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_attidutes, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$Dominance_score, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$aor, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$L2onset, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$lor_sa, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$lor_us, group_RT2long$ldtrt_incong, method = "spearman")
+
+
+
+```
+RT INCONGRUENT RT1
+
+```{r}
+cor.test(group_RT2long$English_global, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$English_use, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$English_attidutes, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_global, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_use, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$Arabic_attidutes, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$Dominance_score, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$aor, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$L2onset, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$lor_sa, group_RT2long$ldtrt_incong, method = "spearman")
+cor.test(group_RT2long$lor_us, group_RT2long$ldtrt_incong, method = "spearman")
+
+
+
+```
+
+RT INCONGRUENT AHS
+
+```{r}
+cor.test(group_RT1long$English_global, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$English_use, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$English_attidutes, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$Arabic_global, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$Arabic_use, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$Arabic_attidutes, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$Dominance_score, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$aor, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$L2onset, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$lor_sa, group_RT1long$ldtrt_incong, method = "spearman")
+cor.test(group_RT1long$lor_us, group_RT1long$ldtrt_incong, method = "spearman")
+
+
+
+```
+RT CONGRUENT AHS
+
+```{r}
+cor.test(group_RT1long$English_global, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$English_use, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$English_attidutes, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$Arabic_global, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$Arabic_use, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$Arabic_attidutes, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$Dominance_score, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$aor, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$L2onset, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$lor_sa, group_RT1long$acc_nonwithout, method = "spearman")
+cor.test(group_RT1long$lor_us, group_RT1long$acc_nonwithout, method = "spearman")
+
+
+
+```
+aor
+```{r}
+cor.test(group_RT1long$aor, group_RT1long$rt_mean_total, method = "spearman")
+cor.test(group_RT2long$aor, group_RT2long$rt_mean_total, method = "spearman")
+```
+```{r}
+cor.test(group_RT2long$English_attidutes, group_RT2long$ldtacc_cong, method = "pearson")
+cor.test(group_RT2long$English_attidutes, group_RT2long$ldtacc_incong, method = "pearson")
+```
+
+
+```{r}
+cor.test(frontiers_long$aor, frontiers_long$accuracy_total, method = "spearman")
+```
+
+```{r}
+correlation_matrix <- cor(accuracy)
+```
+
+models with rt with dominance score : 
+
+```{r}
+mod0_rt_LDTd <- lmer(log_rt_ldtfrontiers ~ 1 + (1|participant), data = frontiers_long)
+
+mod1_rt_LDTd <- lmer(log_rt_ldtfrontiers ~ 1 + (1|participant) + (1|item), data = frontiers_long)
+
+mod2_rt_LDTd <- lmer(log_rt_ldtfrontiers ~ Domscale*condition + (1|participant), data = frontiers_long)
+
+mod3_rt_LDTd <- lmer(log_rt_ldtfrontiers ~ Domscale*condition + condition + length + (1|participant) + (1|item), data = frontiers_long)
+
+mod4_rt_LDTd <- lmer(log_rt_ldtfrontiers ~ Domscale*condition + length + (1|participant) + (1|item) + (1+condition|participant), data = frontiers_long)
+
+mod_5_rtcd_LDTd <- lmer(log_rt_ldtfrontiers ~ Domscale*condition + length + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = frontiers_long)
+
+mod_6_rtcd_LDTd <- lmer(log_rt_ldtfrontiers ~ Domscale*condition + length + condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = frontiers_long)
+
+
+
+print(anova(mod0_rt_LDTd, mod1_rt_LDTd, mod2_rt_LDTd, mod3_rt_LDTd, mod4_rt_LDTd, mod_5_rtcd_LDTd, mod_6_rtcd_LDTd ))
+```
+
+```{r}
+summary(mod4_rt_LDTd)
+```
+
+models with rt with englihs global score : 
+
+```{r}
+mod0_rt_LDTde <- lmer(log_rt_ldtfrontiers ~ 1 + (1|participant), data = frontiers_long)
+
+mod1_rt_LDTde <- lmer(log_rt_ldtfrontiers ~ 1 + (1|participant) + (1|item), data = frontiers_long)
+
+mod2_rt_LDTde <- lmer(log_rt_ldtfrontiers ~ English_glob_scale*condition + (1|participant), data = frontiers_long)
+
+mod3_rt_LDTde <- lmer(log_rt_ldtfrontiers ~ English_glob_scale*condition + condition + length + (1|participant) + (1|item), data = frontiers_long)
+
+mod4_rt_LDTde <- lmer(log_rt_ldtfrontiers ~ English_glob_scale*condition + length + (1|participant) + (1|item) + (1+condition|participant), data = frontiers_long)
+
+mod_5_rtcd_LDTde <- lmer(log_rt_ldtfrontiers ~ English_glob_scale*condition + length + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = frontiers_long)
+
+mod_6_rtcd_LDTde <- lmer(log_rt_ldtfrontiers ~ English_glob_scale*condition + length + condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = frontiers_long)
+
+
+
+print(anova(mod0_rt_LDTde, mod1_rt_LDTde, mod2_rt_LDTde, mod3_rt_LDTde, mod4_rt_LDTde, mod_5_rtcd_LDTde, mod_6_rtcd_LDTde ))
+```
+
+```{r}
+summary(mod4_rt_LDTde)
+```
+
+models with arabic global score: 
+
+```{r}
+mod0_rt_LDTda <- lmer(log_rt_ldtfrontiers ~ 1 + (1|participant), data = frontiers_long)
+
+mod1_rt_LDTda <- lmer(log_rt_ldtfrontiers ~ 1 + (1|participant) + (1|item), data = frontiers_long)
+
+mod2_rt_LDTda <- lmer(log_rt_ldtfrontiers ~ Arabic_glob_scale*condition + (1|participant), data = frontiers_long)
+
+mod3_rt_LDTda <- lmer(log_rt_ldtfrontiers ~ Arabic_glob_scale*condition + condition + length + (1|participant) + (1|item), data = frontiers_long)
+
+mod4_rt_LDTda<- lmer(log_rt_ldtfrontiers ~ Arabic_glob_scale*condition + length + (1|participant) + (1|item) + (1+condition|participant), data = frontiers_long)
+
+mod_5_rtcd_LDTda <- lmer(log_rt_ldtfrontiers ~ Arabic_glob_scale*condition + length + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = frontiers_long)
+
+mod_6_rtcd_LDTda <- lmer(log_rt_ldtfrontiers ~ Arabic_glob_scale*condition + length + condition + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = frontiers_long)
+
+mod_7_rtcd_LDTda <- lmer(log_rt_ldtfrontiers ~ Arabic_glob_scale*condition + length + condition + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + (1|participant) + (1|item) + (1+condition|participant) + (1+item|participant), data = frontiers_long)
+
+
+print(anova(mod0_rt_LDTda, mod1_rt_LDTda, mod2_rt_LDTda, mod3_rt_LDTda, mod4_rt_LDTda, mod_5_rtcd_LDTda, mod_6_rtcd_LDTda, mod_7_rtcd_LDTda ))
+```
+
+```{r}
+summary(mod4_rt_LDTda)
+```
+
+
+models with individual scales
+```{r}
+
+mod_2_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale + English_use_scale + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + ses + edu + (1|participant) + (1|item), data = frontiers_long)
+
+mod_3_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale + English_use_scale + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale+ EnglishVocs + ArabicVocs + ses + edu + (1|participant) + (1|item), data = frontiers_long)
+
+mod_4_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale+ ses + edu  + (1|participant) + (1|item), data = frontiers_long)
+
+mod_5_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale+ ses + edu  +  EnglishVocs + ArabicVocs +(1|participant) + (1|item), data = frontiers_long)
+
+
+mod_6_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale+ EnglishVocs + ArabicVocs  + ses + edu +  (1|participant) + (1|item), data = frontiers_long)
+
+mod_7_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale+ EnglishVocs + ArabicVocs + ses + edu  +  (1|participant) + (1|item), data = frontiers_long)
+
+
+mod_8_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale+ ses + edu   + EnglishVocs + ArabicVocs + (1|participant) + (1|item), data = frontiers_long)
+
+mod_9_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale +l2onsetscale + lorus_scale + ses+ EnglishVocs + ArabicVocs + edu + lorsa_scale +  (1|participant) + (1|item), data = frontiers_long)
+
+
+mod_10_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale + lorsa_scale+ ses + edu + EnglishVocs + ArabicVocs +  (1|participant) + (1|item), data = frontiers_long)
+
+mod_11_iglobalrt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale*condition + lorsa_scale + ses + edu +  EnglishVocs + ArabicVocs+ (1|participant) + (1|item), data = frontiers_long)
+
+mod_12_iglobalrt <- lmer(log_rt_ldtfrontiers ~length + condition + english_workscale*condition + English_use_scale*condition + Arabic_use_scale*condition + Arabic_att_scale*condition + English_att_scale*condition + aor_scale*condition +l2onsetscale*condition + lorus_scale*condition + lorsa_scale*condition+ ses + edu + EnglishVocs + ArabicVocs +  (1|participant) + (1|item), data = frontiers_long)
+
+
+print(anova( mod_2_iglobalrt, mod_3_iglobalrt, mod_4_iglobalrt, mod_5_iglobalrt, mod_6_iglobalrt, mod_7_iglobalrt, mod_8_iglobalrt, mod_9_iglobalrt, mod_10_iglobalrt, mod_11_iglobalrt, mod_12_iglobalrt ))
+```
+```{r}
+summary(mod_2_iglobalrt)
+```
+
+```{r}
+# Install and load the car package
+library(car)
+
+# Calculate VIFs
+vif(mod_3_iglobalrt)
+```
+
+```{r}
+# Assuming you have a linear mixed model
+library(lme4)
+install.packages("MuMIn")
+library(MuMIn)
+
+# Fit the model
+mod_lmerajt <- lmer(log_rt_ldtfrontiers ~ length + condition + english_workscale + English_use_scale + Arabic_use_scale + Arabic_att_scale + English_att_scale + aor_scale +l2onsetscale + lorus_scale + lorsa_scale + ses + edu + (1|participant) + (1|item), data = frontiers_long)
+
+
+# Compute R² values
+r2_lmerajt <- r.squaredGLMM(mod_lmerajt)
+
+# Display marginal and conditional R²
+print(r2_lmerajt)
+```
+```
+
+
+```{r}
+summary(mod_3_iglobalrt)
+```
+
+```{r}
+us <- lmer(log_rt_ldtfrontiers ~ lorus_scale + (1 | participant) + (1 | item), data = frontiers_long)
+summary(us)
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+model_params <- broom.mixed::tidy(mod_3_iglobalrt)
+model_params |>
+  filter(!str_detect(term, "sd")) |>
+  ggplot(aes(x = term, y = estimate, color = term)) +
+  geom_errorbar(aes(ymin = estimate - std.error, ymax = estimate + std.error), width = 0.3, color = "black") +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("red", "blue", "green", "orange", "purple", "pink", "yellow", "maroon", "black", "brown", "beige", "grey", "magenta", "cyan","seagreen" "skyblue", "darkgray", "navyblue", "lightgrey","darkmagenta" )) +  # Adjust the colors as needed
+  theme(legend.position = "bottom") +
+  labs(y = "Accuracy", x = "Group")
+```
+
+```{r}
+# Extract model parameters
+model_params <- broom.mixed::tidy(mod_3_iglobalrt)
+
+# Plot estimates with error bars
+model_params |>
+  filter(!str_detect(term, "sd")) |>
+  ggplot(aes(x = term, y = estimate, color = term)) +
+  geom_errorbar(aes(ymin = estimate - std.error, ymax = estimate + std.error), width = 0.3, color = "black") +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("red", "blue", "green", "orange", "purple", "pink", "yellow", 
+                                "maroon", "black", "brown", "beige", "grey", "magenta", "cyan", 
+                                "seagreen", "skyblue", "darkgray", "navyblue", "lightgrey", 
+                                "darkmagenta", "violet", "coral", "darkgreen", "gold", "turquoise", 
+                                "salmon", "khaki")) +  # Added more colors
+  theme(legend.position = "none",  # Hide the legend since each term is individually colored
+        axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotate x-axis labels for better readability
+  labs(y = "Estimate", x = "Model Terms", title = "Model Estimates with Error Bars")
+```
+
+```{r}
+install.packages("sjPlot")
+install.packages("insight")
+library(sjPlot)
+
+# Random effects plot
+sjp.lmer(mod_3_iglobalrt, type = "re")
+```
+
+```{r}
+frontiers_long <- frontiers_long %>%
+  mutate(incong = case_when(condition == "Congruent" ~ -1L, # baseline
+                          condition == "Incongruent" ~  1L, # target
+                          TRUE      ~ 0L), # anything else
+          unacw = case_when(condition == "Congruent" ~ -1L, # baseline
+                          condition == "UnaccWithArEq" ~  1L, # target
+                          TRUE      ~ 0L), # anything else
+          unacwt = case_when(condition == "Congruent" ~ -1L, # baseline
+                          condition == "UnaccWithoutArEq" ~  1L, # target
+                          TRUE      ~ 0L))
+
+```
